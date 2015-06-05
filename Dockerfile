@@ -24,32 +24,31 @@ RUN echo 'gem: --no-ri --no-rdoc' > ~/.gemrc
 RUN gem install bundler
 RUN rbenv rehash
 
-# Now that the app is here, we can bundle
-WORKDIR /tmp
-ADD Gemfile Gemfile
-ADD Gemfile.lock Gemfile.lock
-RUN bundle install
+
+# Install foreman
+RUN gem install foreman
 
 # Copy the app into the image
 RUN mkdir /rails
-ADD ./ /rails
 
 # Now that the app is here, we can bundle
 WORKDIR /rails
-# NOT NEEDED :-) RUN bundle install
+ADD Gemfile /rails/Gemfile
+ADD Gemfile.lock /rails/Gemfile.lock
+RUN bundle install --without development test
+ADD ./ /rails
+
+# Add default unicorn config
+ADD unicorn.rb /rails/config/unicorn.rb
+
+# Add default foreman config
+ADD Procfile /rails/Procfile
+
+ENV RAILS_ENV production
 
 # precompile assets
 RUN RAILS_ENV=production rake assets:clean assets:precompile
 
-# copy scripts and config
-ADD unicorn.rb /rails/
-ADD Procfile-production /rails/
-ADD start-production /rails/
-
-# configure nginx
-ADD nginx.conf /etc/nginx/conf.d/rails.conf
-RUN echo "daemon off;" >> /etc/nginx/nginx.conf
-RUN rm /etc/nginx/sites-available/default
+CMD bundle exec rake assets:precompile && foreman start -f Procfile
 
 EXPOSE 80 8080
-CMD "/rails/start-production" rails
